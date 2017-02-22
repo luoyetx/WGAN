@@ -68,7 +68,7 @@ def test():
     noise = np.random.normal(0, 1, (64, 100, 1, 1))
     caffe_net.blobs['data'].data[...] = noise
     caffe_net.forward()
-    caffe_image = caffe_net.blobs['gconv5'].data
+    caffe_image = caffe_net.blobs['gact5'].data
     mx_net.forward(mx.io.DataBatch([mx.nd.array(noise)], []), is_train=False)
     mx_image = mx_net.get_outputs()[0].asnumpy()
     visual('tmp/caffe-g.png', caffe_image)
