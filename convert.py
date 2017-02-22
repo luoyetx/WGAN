@@ -83,3 +83,4 @@ if __name__ == '__main__':
     mx_net = mx.mod.Module.load('model/face-G', 0)
     mx_net.bind(data_shapes=[('rand', (64, 100, 1, 1))])
     test()
+    caffe_net.save('model/g.caffemodel')
