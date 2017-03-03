@@ -8,6 +8,12 @@ import cv2
 import mxnet as mx
 import numpy as np
 
+try:
+    from tensorboard import summary, FileWriter
+    use_tb = True
+    print("TensorBoard is available")
+except ImportError as e:
+    use_tb = False
 
 logging.basicConfig(format="[%(asctime)s][%(levelname)s] %(message)s")
 logger = logging.getLogger()
@@ -147,6 +153,7 @@ def visual(fn, data):
     # save canvas
     canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
     cv2.imwrite(fn, canvas)
+    return canvas
 
 
 class WGANMetric(object):
@@ -198,7 +205,7 @@ def train():
         optimizer_params={
             'learning_rate': lr,
         })
-    modD = mx.mod.Module(symbol=symD, data_names=('data',), context=ctxs)
+    modD = mx.mod.Module(symbol=symD, data_names=('data',), label_names=None, context=ctxs)
     modD.bind(data_shapes=image_iter.provide_data,
               inputs_need_grad=True)
     modD.init_params(mx.init.Normal(0.002))
@@ -212,6 +219,9 @@ def train():
     metricD = WGANMetric()
     metricG = WGANMetric()
     fix_noise_batch = mx.io.DataBatch([mx.random.normal(0, 1, shape=(batch_size, z_dim, 1, 1))], [])
+    # visualization with TensorBoard if possible
+    if use_tb:
+        writer = FileWriter('tmp/exp')
     for epoch in range(epoches):
         image_iter.reset()
         metricD.reset()
@@ -259,10 +269,19 @@ def train():
         rbatch = rand_iter.next()
         modG.forward(rbatch)
         outG = modG.get_outputs()[0]
-        visual('tmp/gout-rand-%d.png'%(epoch+1), outG.asnumpy())
+        canvas = visual('tmp/gout-rand-%d.png'%(epoch+1), outG.asnumpy())
+        if use_tb:
+            canvas = canvas[:, :, ::-1]  # BGR -> RGB
+            writer.add_summary(summary.image('gout-rand-%d'%(epoch+1), canvas))
         modG.forward(fix_noise_batch)
         outG = modG.get_outputs()[0]
-        visual('tmp/gout-fix-%d.png'%(epoch+1), outG.asnumpy())
+        canvas = visual('tmp/gout-fix-%d.png'%(epoch+1), outG.asnumpy())
+        if use_tb:
+            canvas = canvas[:, :, ::-1]
+            writer.add_summary(summary.image('gout-fix-%d'%(epoch+1), canvas))
+        if use_tb:
+            writer.flush()
+    writer.close()
 
 
 if __name__ == '__main__':
@@ -279,6 +298,9 @@ if __name__ == '__main__':
     parser.add_argument('--ngf', type=int, default=64, help="base filter number of generator")
     parser.add_argument('--ndf', type=int, default=64, help="base filter number of discriminator")
     parser.add_argument('--nc', type=int, default=3, help="generator output channels")
+    parser.add_argument('--no-tensorboard', action='store_true', help="use tensorboard for visualization")
     args = parser.parse_args()
     print(args)
+    if args.no_tensorboard:
+        use_tb = False
     train()
